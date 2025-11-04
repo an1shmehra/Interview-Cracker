@@ -12,5 +12,5 @@ questions = div.find_all('h3')
 
 for question in questions:
     print(question.text)
-
+#
    
