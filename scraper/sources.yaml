@@ -1,0 +1,166 @@
+# sources.yaml
+# Master configuration for Interview Cracker (Scrapy-ready)
+# ---------------------------------------------------------
+# - Designed to be read by Scrapy spiders (one spider per source).
+# - Each source has: access_method, target_content, extraction fields, and helpful notes.
+# - Use this as the single source-of-truth for what to crawl and what to extract.
+# ---------------------------------------------------------
+
+meta:
+  project_name: "InterviewCracker"
+  scraper_type: "scrapy"
+  user_agent: "InterviewCrackerBot/1.0 (+your-email@example.com)"
+  respect_robots_txt: true
+  default_delay_seconds: [1.0, 3.0]
+  max_retries: 3
+  storage:
+    sqlite_path: "data/questions.db"
+    export_dir: "data/exports/"
+  date_format: "%Y-%m-%dT%H:%M:%SZ"
+
+sources:
+
+  geeksforgeeks:
+    base_url: "https://www.geeksforgeeks.org"
+    access_method: "scraping"
+    description: >
+      Primary source of authored problems + editorial solutions. Target pages include article
+      tutorials, practice problems, and editorial pages. Many editorial pages include full
+      solution text and code snippets which we will store as the "answer" (store only short
+      excerpts or summaries in DB, and link to full page for full editorial).
+    target_content:
+      - question_title
+      - question_body_html
+      - question_body_text_snippet
+      - editorial_solution_html  # solution/explanation block (if present)
+      - code_snippets (if present)
+      - difficulty
+      - tags
+      - examples (input/output)
+      - source_url
+    selectors:
+      # List-page selectors: find problem/article links from index pages
+      list_page_article_links: "a[href*='/problems/'], a[href*='/practice/'], a[href*='/dsa/'], a[href*='/algorithms/']"
+      # Problem / article page extraction (try in order; spiders should attempt each)
+      title: "h1.entry-title, h1, .entry-title, header h1"
+      # main content block (HTML). Use for body and searching for solution blocks.
+      body_block: ".entry-content, .content, .problem-statement, article, .post-content"
+      # Common solution/editorial container (best-effort)
+      editorial_block: ".solution, .algo, .editorial, .answer, .article-content .solution"
+      # code snippet selector (within editorial or body)
+      code_snippet: "pre, code, .code-block"
+      # example/IO selector heuristics
+      examples: "pre:has(code), .example, .sample-testcase, .input-output"
+      # optional: sometimes GfG embeds JSON in <script id='__NEXT_DATA__'> (use fallback to parse)
+      next_data_script: "script#__NEXT_DATA__"
+    start_pages:
+      - "https://www.geeksforgeeks.org/practice-for-cracking-any-coding-interview/"
+      - "https://www.geeksforgeeks.org/dsa/"
+      - "https://www.geeksforgeeks.org/category/algorithms/"
+    pagination_selector: "a.next, a[rel='next']"
+    politeness:
+      delay_seconds: [1.0, 2.5]
+      concurrent_requests: 2
+    notes:
+      - "Scrape both 'blog/article' pages and '/problems/' pages. '/problems/' pages sometimes include minimal HTML; check for __NEXT_DATA__ blob in the page and extract JSON content if available."
+      - "Store small HTML snippets and a cleaned text snippet (200-400 chars) in DB; link to the original URL for full editorial text."
+      - "Respect robots.txt; if blocked, skip that path."
+
+  github_lists:
+    base_url: "https://github.com"
+    access_method: "raw_markdown"  # fetch raw .md via raw.githubusercontent.com
+    description: >
+      Curated company-wise and topic-wise lists of interview questions (usually LeetCode links).
+      These repos rarely include full solutions — use them to expand the question index and
+      to associate problems with companies/topics.
+    repos:
+      - name: "leetcode-companywise"
+        url: "https://github.com/krishnadey30/LeetCode-Questions-CompanyWise"
+        raw_pattern: "https://raw.githubusercontent.com/krishnadey30/LeetCode-Questions-CompanyWise/master/{file_path}"
+        files:
+          - "Amazon.md"
+          - "Google.md"
+          - "Microsoft.md"
+          - "Meta.md"
+          - "Adobe.md"
+          - "GoldmanSachs.md"
+          - "Uber.md"
+          - "Netflix.md"
+      - name: "tech-interview-handbook"
+        url: "https://github.com/yangshun/tech-interview-handbook"
+        raw_pattern: "https://raw.githubusercontent.com/yangshun/tech-interview-handbook/main/{file_path}"
+        files:
+          - "contents/coding/algorithms/algorithms-intro.md"
+          - "contents/coding/data-structures/data-structures-intro.md"
+    target_content:
+      - question_title
+      - question_url (usually leetcode.com link)
+      - company_tag (inferred by file)
+      - topic/tags (when present)
+    patterns:
+      # Markdown link capture; spiders should also look for any plain leetcode.com/problems/ URLs
+      md_link_regex: "\\[([^\\]]+)\\]\\((https://leetcode\\.com/problems/[^)]+)\\)"
+      url_regex: "https?://leetcode\\.com/problems/[^)\\s]+"
+    politeness:
+      delay_seconds: [0.5, 1.0]
+      concurrent_requests: 4
+    notes:
+      - "This source is for indexing questions and company associations — solutions typically not present."
+      - "We fetch raw markdown (no JS rendering)."
+
+  leetcode_api:
+    base_url: "https://leetcode.com"
+    access_method: "graphql_api"
+    enabled: false   # toggle true when you implement GraphQL client
+    description: >
+      Preferred programmatic source for full problem text and examples for LeetCode links discovered via other sources.
+      When enabled, call LeetCode GraphQL to fetch title, content (HTML), difficulty, tags, and example I/O.
+    graphql_endpoint: "https://leetcode.com/graphql"
+    example_query_slug: "two-sum"
+    target_content:
+      - question_title
+      - question_body_html
+      - question_examples
+      - difficulty
+      - tags
+      - editorial (if available via API or public 'solution' payload)
+    notes:
+      - "Using LeetCode GraphQL can require handling CSRF/auth cookies in some cases. Start by hitting a small number of slugs."
+      - "Enable only after you implement a token refresh and rate-limiting; do not mass-download premium content."
+
+  codeforces_api:
+    base_url: "https://codeforces.com"
+    access_method: "public_api"
+    enabled: true
+    description: >
+      Codeforces provides an open API for problemsets. Use it to populate additional Q+A pairs
+      (title, statement — often available as HTML or text, problem tags, difficulty rating).
+    api:
+      problemset_endpoint: "https://codeforces.com/api/problemset.problems"
+    target_content:
+      - question_title
+      - question_body_text
+      - tags
+      - difficulty_rating
+      - source_url
+    politeness:
+      delay_seconds: [1.0, 2.0]
+    notes:
+      - "No login required; API returns JSON metadata. If full HTML statement is needed, fetch the problem page and parse."
+
+  hacker_rank:
+    base_url: "https://www.hackerrank.com"
+    access_method: "light_indexing"  # only index public problem titles/urls
+    enabled: false
+    description: >
+      HackerRank often requires login for full problem text. We will treat it as a light index source only
+      (collect problem links when they appear publicly), and do NOT scrape full statements unless permitted.
+    notes:
+      - "Deprioritize; implement only after verifying TOS and robots."
+
+  notes_and_legal:
+    summary: >
+      - Always respect robots.txt and the site's Terms of Service. The 'respect_robots_txt' meta flag should be enforced by spiders.
+      - Store only small excerpts of editorial text (200-400 chars) in the DB and keep source_url for full reading on the original site to avoid redistributing copyrighted content.
+      - Prefer APIs (Codeforces, LeetCode GraphQL) for full statements where possible. Use GitHub lists to build a clean question index and company mappings.
+      - Rate-limit aggressively and include contact email in User-Agent.
