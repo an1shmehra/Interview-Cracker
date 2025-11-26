@@ -21,13 +21,13 @@ class Question(Base):
     __tablename__ = "questions"
     
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(500), nullable=False, index=True)
-    title_slug = Column(String(500), index=True)
+    title = Column(Text, nullable=False, index=True)
+    title_slug = Column(Text, index=True, unique=True)
     difficulty = Column(String(50))
     content = Column(Text)
     category = Column(String(100), index=True)  # DSA, System Design, Behavioral
     source = Column(String(200))
-    url = Column(String(500))
+    url = Column(String(1000))
     ac_rate = Column(Float, nullable=True)  # Only for LeetCode
     scraped_at = Column(String(100))
     
