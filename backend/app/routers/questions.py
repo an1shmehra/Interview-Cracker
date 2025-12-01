@@ -15,7 +15,7 @@ def get_questions(
     company: Optional[str] = None,
     topic: Optional[str] = None,
     search: Optional[str] = None,
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):

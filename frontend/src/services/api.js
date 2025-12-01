@@ -10,22 +10,11 @@ const api = axios.create({
 });
 
 export const questionsAPI = {
-    // Get all questions with filters
     getQuestions: (params = {}) => api.get('/questions', { params }),
-
-    // Get single question
     getQuestion: (id) => api.get(`/questions/${id}`),
-
-    // Get categories
     getCategories: () => api.get('/categories'),
-
-    // Get companies
     getCompanies: () => api.get('/companies'),
-
-    // Get topics
     getTopics: () => api.get('/topics'),
-
-    // Get stats
     getStats: () => api.get('/stats'),
 };
 
