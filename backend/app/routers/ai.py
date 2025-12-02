@@ -33,6 +33,43 @@ class AIResponse(BaseModel):
     response: str
     recommended_questions: List[RecommendedQuestion]
 
+def detect_category(query: str) -> Optional[str]:
+    """
+    Detect which category the user is asking about based on keywords.
+    Returns 'DSA', 'System Design', 'Behavioral', or None.
+    """
+    query_lower = query.lower()
+
+    # System Design keywords
+    system_design_keywords = [
+        'system design', 'scalability', 'distributed', 'architecture',
+        'load balancing', 'microservices', 'database design', 'caching',
+        'rate limiting', 'api design', 'design a system', 'design an app'
+    ]
+
+    # DSA keywords
+    dsa_keywords = [
+        'algorithm', 'data structure', 'dsa', 'leetcode', 'coding',
+        'array', 'linked list', 'tree', 'graph', 'dynamic programming',
+        'sorting', 'searching', 'recursion', 'hash', 'stack', 'queue'
+    ]
+
+    # Behavioral keywords
+    behavioral_keywords = [
+        'behavioral', 'tell me about', 'describe a time', 'leadership',
+        'conflict', 'teamwork', 'challenge', 'failure', 'success story'
+    ]
+
+    # Check for matches
+    if any(keyword in query_lower for keyword in system_design_keywords):
+        return 'System Design'
+    elif any(keyword in query_lower for keyword in behavioral_keywords):
+        return 'Behavioral'
+    elif any(keyword in query_lower for keyword in dsa_keywords):
+        return 'DSA'
+
+    return None
+
 @router.post("/ai/ask", response_model=AIResponse)
 def ask_ai(
     request: AIRequest,
@@ -46,23 +83,38 @@ def ask_ai(
     Returns AI-generated advice along with relevant question recommendations.
     """
 
-    # Step 1: Retrieval - Search for relevant questions in the database
+    # Step 1: Detect category from user query
+    detected_category = detect_category(request.query)
+    print(f"[DEBUG] Detected category: {detected_category}")
+
+    # Step 2: Retrieval - Search for relevant questions in the database
     search_terms = request.query.lower()
+    questions_query = []
 
-    # Search in title, content, category
-    questions_query = db.query(Question).filter(
-        or_(
-            Question.title.ilike(f"%{search_terms}%"),
-            Question.content.ilike(f"%{search_terms}%"),
-            Question.category.ilike(f"%{search_terms}%")
-        )
-    ).limit(5).all()
+    # If category detected, prioritize questions from that category
+    if detected_category:
+        print(f"[DEBUG] Filtering by category: {detected_category}")
+        questions_query = db.query(Question).filter(
+            Question.category == detected_category
+        ).limit(5).all()
+        print(f"[DEBUG] Found {len(questions_query)} questions in {detected_category} category")
 
-    # If no questions found with full query, try to extract key terms
+    # If no category-specific results or no category detected, do general keyword search
     if not questions_query:
-        # Try searching with individual words (simple keyword extraction)
+        print(f"[DEBUG] Falling back to general keyword search")
+        questions_query = db.query(Question).filter(
+            or_(
+                Question.title.ilike(f"%{search_terms}%"),
+                Question.content.ilike(f"%{search_terms}%"),
+                Question.category.ilike(f"%{search_terms}%")
+            )
+        ).limit(5).all()
+
+    # If still no questions found, try searching with individual words
+    if not questions_query:
         words = [w for w in search_terms.split() if len(w) > 3]
         if words:
+            print(f"[DEBUG] Trying word-based search with: {words}")
             filters = [
                 or_(
                     Question.title.ilike(f"%{word}%"),
