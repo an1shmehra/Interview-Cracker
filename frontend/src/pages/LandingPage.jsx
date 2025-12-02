@@ -15,7 +15,7 @@ export default function LandingPage() {
                         </div>
 
                         {/* Heading */}
-                        <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 mb-6 leading-tight tracking-tight">
+                        <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 mb-8 leading-tight tracking-tight">
                             Ace Your Next
                             <br />
                             <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
@@ -23,10 +23,14 @@ export default function LandingPage() {
                             </span>
                         </h1>
 
-                        <p className="text-xl text-gray-600 mb-10 leading-relaxed max-w-2xl mx-auto">
-                            Master coding interviews with curated questions from FAANG and top tech companies.
-                            Practice smarter with AI-powered insights and personalized recommendations.
-                        </p>
+                        <div className="max-w-3xl mx-auto mb-10 space-y-4">
+                            <p className="text-2xl text-gray-800 leading-relaxed font-medium">
+                                We bring together high-quality interview questions from <span className="text-blue-600 font-semibold">hard-to-find premium sources</span> across top tech companies, <span className="font-semibold text-gray-900">all in one place</span>.
+                            </p>
+                            <p className="text-lg text-gray-600 leading-relaxed">
+                                Practice smarter with AI-powered insights and personalized recommendations.
+                            </p>
+                        </div>
 
                         {/* CTA */}
                         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -34,6 +38,12 @@ export default function LandingPage() {
                                 <button className="px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all hover:shadow-lg hover:shadow-blue-500/50 flex items-center gap-2">
                                     Start Practicing
                                     <ArrowRight size={18} />
+                                </button>
+                            </Link>
+                            <Link to="/ai">
+                                <button className="px-8 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg font-semibold transition-all hover:shadow-lg hover:shadow-purple-500/50 flex items-center gap-2">
+                                    <Sparkles size={18} />
+                                    Try AI Assistant
                                 </button>
                             </Link>
                             <a href="#features">
@@ -66,8 +76,8 @@ export default function LandingPage() {
                         />
                         <FeatureCard
                             icon={<Shield className="text-blue-600" size={24} />}
-                            title="Curated Quality"
-                            description="Hand-picked questions from real interviews at FAANG and top tech companies."
+                            title="Premium Sources, One Platform"
+                            description="Hard-to-find questions from scattered premium sources, curated and organized in one convenient place."
                         />
                         <FeatureCard
                             icon={<Sparkles className="text-blue-600" size={24} />}

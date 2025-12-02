@@ -6,7 +6,7 @@ const navigation = [
     { name: 'DSA', href: '/questions?category=DSA', icon: Code },
     { name: 'System Design', href: '/questions?category=System Design', icon: Brain },
     { name: 'Behavioral', href: '/questions?category=Behavioral', icon: MessageSquare },
-    { name: 'AI Assistant', href: '/ai', icon: Sparkles, badge: 'Soon' },
+    { name: 'AI Assistant', href: '/ai', icon: Sparkles },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -78,8 +78,8 @@ export default function Sidebar({ isOpen, onClose }) {
             {/* Footer */}
             <div className="p-4 border-t border-gray-200">
                 <div className="px-3 py-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
-                    <p className="text-xs text-blue-600 font-medium">FAANG Focused</p>
-                    <p className="text-sm font-semibold text-gray-900 mt-1">Real Interview Questions</p>
+                    <p className="text-xs text-blue-600 font-medium">Top Companies</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-1">Curated From Premium Sources</p>
                 </div>
             </div>
         </aside>

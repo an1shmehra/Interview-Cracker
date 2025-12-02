@@ -18,4 +18,8 @@ export const questionsAPI = {
     getStats: () => api.get('/stats'),
 };
 
+export const aiAPI = {
+    ask: (query) => api.post('/ai/ask', { query }),
+};
+
 export default api;

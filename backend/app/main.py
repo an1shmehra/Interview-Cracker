@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import questions, stats
+from app.routers import questions, stats, ai
 from app.database import engine
 from app.database import Base
 
@@ -23,6 +23,7 @@ app.add_middleware(
 # Include routers
 app.include_router(questions.router, prefix="/api", tags=["Questions"])
 app.include_router(stats.router, prefix="/api", tags=["Statistics"])
+app.include_router(ai.router, prefix="/api", tags=["AI"])
 
 # Root endpoint
 @app.get("/")
