@@ -1,15 +1,24 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { questionsAPI } from '../services/api';
-import { Search } from 'lucide-react';
+import { Search, Check, Bookmark } from 'lucide-react';
+import { useProgress } from '../context/ProgressContext';
+import DemoModeBanner from '../components/DemoModeBanner';
 
 export default function QuestionsPage() {
     const [searchParams] = useSearchParams();
     const [questions, setQuestions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const { getQuestionProgress, isGuestMode } = useProgress();
 
     const category = searchParams.get('category') || '';
+
+    // Utility function to clean question titles
+    const cleanTitle = (title) => {
+        // Remove "Question X:" or "Question X." prefix
+        return title.replace(/^Question\s+\d+[:.]\s*/i, '');
+    };
 
     useEffect(() => {
         fetchQuestions();
@@ -64,6 +73,9 @@ export default function QuestionsPage() {
                         </div>
                     </div>
 
+                    {/* Demo Mode Banner */}
+                    {isGuestMode && <DemoModeBanner />}
+
                     {/* Questions */}
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-32">
@@ -80,11 +92,27 @@ export default function QuestionsPage() {
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {questions.map((question) => (
+                            {questions.map((question) => {
+                                const progress = getQuestionProgress(question.id);
+                                return (
                                 <Link key={question.id} to={`/questions/${question.id}`}>
-                                    <div className="group p-6 bg-white border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-lg transition-all duration-200">
-                                        <h3 className="text-lg font-semibold text-gray-900 mb-4 group-hover:text-blue-600 transition-colors">
-                                            {question.title}
+                                    <div className="group p-6 bg-white border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-lg transition-all duration-200 relative">
+                                        {/* Progress Indicators */}
+                                        <div className="absolute top-4 right-4 flex gap-2">
+                                            {progress.status === 'completed' && (
+                                                <div className="w-7 h-7 bg-green-600 rounded-full flex items-center justify-center" title="Completed">
+                                                    <Check size={16} className="text-white" />
+                                                </div>
+                                            )}
+                                            {progress.bookmarked && (
+                                                <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center" title="Bookmarked">
+                                                    <Bookmark size={14} className="text-white" fill="white" />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-4 group-hover:text-blue-600 transition-colors pr-16">
+                                            {cleanTitle(question.title)}
                                         </h3>
 
                                         <div className="flex flex-wrap gap-2">
@@ -92,9 +120,11 @@ export default function QuestionsPage() {
                                                 {question.category}
                                             </span>
 
-                                            <span className={`px-3 py-1.5 text-sm font-medium rounded-lg border ${difficultyColors[question.difficulty]}`}>
-                                                {question.difficulty}
-                                            </span>
+                                            {question.difficulty && question.difficulty !== 'Unknown' && (
+                                                <span className={`px-3 py-1.5 text-sm font-medium rounded-lg border ${difficultyColors[question.difficulty]}`}>
+                                                    {question.difficulty}
+                                                </span>
+                                            )}
 
                                             {question.companies?.slice(0, 3).map((company, i) => (
                                                 <span key={i} className="px-3 py-1.5 bg-gray-50 text-gray-700 text-sm font-medium rounded-lg border border-gray-200">
@@ -110,7 +140,8 @@ export default function QuestionsPage() {
                                         </div>
                                     </div>
                                 </Link>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>

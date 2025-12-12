@@ -1,12 +1,24 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { questionsAPI } from '../services/api';
-import { ArrowLeft, Building2, Tag, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Building2, Tag, ExternalLink, Check, Bookmark, BookmarkCheck } from 'lucide-react';
+import { useProgress } from '../context/ProgressContext';
+import DemoModeBanner from '../components/DemoModeBanner';
 
 export default function QuestionDetail() {
     const { id } = useParams();
     const [question, setQuestion] = useState(null);
     const [loading, setLoading] = useState(true);
+    const { getQuestionProgress, updateQuestionStatus, toggleBookmark, isGuestMode } = useProgress();
+
+    // Utility function to clean question titles
+    const cleanTitle = (title) => {
+        // Remove "Question X:" or "Question X." prefix
+        return title.replace(/^Question\s+\d+[:.]\s*/i, '');
+    };
+
+    // Get current progress for this question
+    const questionProgress = getQuestionProgress(id);
 
     useEffect(() => {
         fetchQuestion();
@@ -48,7 +60,7 @@ export default function QuestionDetail() {
                 <div className="text-center">
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Question not found</h2>
                     <Link to="/questions" className="text-blue-600 hover:text-blue-700">
-                        ê Back to questions
+                        ÔøΩ Back to questions
                     </Link>
                 </div>
             </div>
@@ -70,9 +82,38 @@ export default function QuestionDetail() {
 
                     {/* Question Card */}
                     <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+                        {/* Progress Buttons */}
+                        <div className="flex gap-3 mb-6">
+                            <button
+                                onClick={() => updateQuestionStatus(id, questionProgress.status === 'completed' ? null : 'completed')}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                                    questionProgress.status === 'completed'
+                                        ? 'bg-green-600 text-white hover:bg-green-700'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                            >
+                                <Check size={18} />
+                                {questionProgress.status === 'completed' ? 'Completed' : 'Mark Complete'}
+                            </button>
+                            <button
+                                onClick={() => toggleBookmark(id)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                                    questionProgress.bookmarked
+                                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                            >
+                                {questionProgress.bookmarked ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
+                                {questionProgress.bookmarked ? 'Bookmarked' : 'Bookmark'}
+                            </button>
+                        </div>
+
+                        {/* Demo Mode Banner */}
+                        {isGuestMode && <DemoModeBanner />}
+
                         {/* Title */}
                         <h1 className="text-3xl font-bold text-gray-900 mb-6">
-                            {question.title}
+                            {cleanTitle(question.title)}
                         </h1>
 
                         {/* Metadata */}
@@ -81,9 +122,11 @@ export default function QuestionDetail() {
                                 {question.category}
                             </span>
 
-                            <span className={`px-3 py-1.5 text-sm font-medium rounded-lg border ${difficultyColors[question.difficulty]}`}>
-                                {question.difficulty}
-                            </span>
+                            {question.difficulty && question.difficulty !== 'Unknown' && (
+                                <span className={`px-3 py-1.5 text-sm font-medium rounded-lg border ${difficultyColors[question.difficulty]}`}>
+                                    {question.difficulty}
+                                </span>
+                            )}
 
                             {question.url && (
                                 <a
