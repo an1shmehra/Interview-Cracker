@@ -1,19 +1,23 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { aiAPI } from '../services/api';
-import { Send, Sparkles, BookOpen } from 'lucide-react';
+import { aiAPI, questionsAPI } from '../services/api';
+import { Send, Sparkles, BookOpen, Target, TrendingUp } from 'lucide-react';
+import { useProgress } from '../context/ProgressContext';
 
 export default function AIAssistant() {
     const [messages, setMessages] = useState([
         {
             role: 'assistant',
             content: 'Hi! I\'m your AI interview preparation assistant. Ask me anything about technical interviews, data structures, system design, or behavioral questions. I\'ll provide guidance and recommend relevant practice questions from our database.',
-            recommended_questions: []
+            recommended_questions: [],
+            personalized_recommendations: null
         }
     ]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [questions, setQuestions] = useState([]);
     const messagesEndRef = useRef(null);
+    const { progress } = useProgress();
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -23,6 +27,41 @@ export default function AIAssistant() {
         scrollToBottom();
     }, [messages]);
 
+    // Fetch all questions on mount
+    useEffect(() => {
+        const fetchQuestions = async () => {
+            try {
+                const response = await questionsAPI.getQuestions({ limit: 500 });
+                setQuestions(response.data.questions);
+            } catch (error) {
+                console.error('Error fetching questions:', error);
+            }
+        };
+        fetchQuestions();
+    }, []);
+
+    // Build user progress data for AI API
+    const buildProgressData = () => {
+        if (!questions.length || !progress) return null;
+
+        const progressData = [];
+
+        // Iterate through user's progress and match with question metadata
+        Object.entries(progress).forEach(([questionId, progressInfo]) => {
+            const question = questions.find(q => q.id === parseInt(questionId));
+            if (question && progressInfo.status) {
+                progressData.push({
+                    question_id: question.id,
+                    category: question.category,
+                    difficulty: question.difficulty,
+                    status: progressInfo.status
+                });
+            }
+        });
+
+        return progressData.length > 0 ? progressData : null;
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!input.trim() || loading) return;
@@ -31,25 +70,40 @@ export default function AIAssistant() {
         setInput('');
 
         // Add user message
-        setMessages(prev => [...prev, { role: 'user', content: userMessage, recommended_questions: [] }]);
+        setMessages(prev => [...prev, {
+            role: 'user',
+            content: userMessage,
+            recommended_questions: [],
+            personalized_recommendations: null
+        }]);
         setLoading(true);
 
         try {
-            const response = await aiAPI.ask(userMessage);
-            const { response: aiResponse, recommended_questions } = response.data;
+            // Build progress data
+            const userProgressData = buildProgressData();
+
+            // Call AI API with progress data
+            const response = await aiAPI.ask(userMessage, userProgressData);
+            const {
+                response: aiResponse,
+                recommended_questions,
+                personalized_recommendations
+            } = response.data;
 
             // Add AI response
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: aiResponse,
-                recommended_questions: recommended_questions || []
+                recommended_questions: recommended_questions || [],
+                personalized_recommendations: personalized_recommendations || null
             }]);
         } catch (error) {
             console.error('Error:', error);
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: 'Sorry, I encountered an error. Please try again.',
-                recommended_questions: []
+                recommended_questions: [],
+                personalized_recommendations: null
             }]);
         } finally {
             setLoading(false);
@@ -110,6 +164,46 @@ export default function AIAssistant() {
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Personalized Recommendations */}
+                                    {message.personalized_recommendations && message.personalized_recommendations.length > 0 && (
+                                        <div className="mt-4 ml-12">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <Target size={16} className="text-purple-600" />
+                                                <p className="text-sm font-semibold text-gray-700">Your Personalized Learning Path</p>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {message.personalized_recommendations.map((rec, i) => (
+                                                    <div key={i} className="p-4 bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-xl">
+                                                        <div className="flex items-start justify-between mb-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <TrendingUp size={16} className="text-purple-600" />
+                                                                <h4 className="font-semibold text-gray-900">{rec.category}</h4>
+                                                            </div>
+                                                            <span className={`px-3 py-1 text-xs font-medium rounded-lg border ${difficultyColors[rec.recommended_difficulty]}`}>
+                                                                {rec.recommended_difficulty}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-sm text-gray-700 mb-2">{rec.reason}</p>
+                                                        <div className="flex gap-3 text-xs text-gray-600">
+                                                            <span className="flex items-center gap-1">
+                                                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                                                Easy: {rec.completed_easy}
+                                                            </span>
+                                                            <span className="flex items-center gap-1">
+                                                                <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                                                                Medium: {rec.completed_medium}
+                                                            </span>
+                                                            <span className="flex items-center gap-1">
+                                                                <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                                                Hard: {rec.completed_hard}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Recommended Questions */}
                                     {message.recommended_questions && message.recommended_questions.length > 0 && (

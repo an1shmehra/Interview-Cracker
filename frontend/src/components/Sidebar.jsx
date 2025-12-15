@@ -74,14 +74,6 @@ export default function Sidebar({ isOpen, onClose }) {
                     })}
                 </div>
             </nav>
-
-            {/* Footer */}
-            <div className="p-4 border-t border-gray-200">
-                <div className="px-3 py-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
-                    <p className="text-xs text-blue-600 font-medium">Top Companies</p>
-                    <p className="text-sm font-semibold text-gray-900 mt-1">Curated From Premium Sources</p>
-                </div>
-            </div>
         </aside>
     );
 }

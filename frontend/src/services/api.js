@@ -19,7 +19,10 @@ export const questionsAPI = {
 };
 
 export const aiAPI = {
-    ask: (query) => api.post('/ai/ask', { query }),
+    ask: (query, userProgress = null) => api.post('/ai/ask', {
+        query,
+        user_progress: userProgress
+    }),
 };
 
 export default api;

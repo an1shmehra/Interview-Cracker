@@ -1,27 +1,28 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 from app.database import get_db
 from app.models import Question
 from sqlalchemy import or_
 import os
-import traceback
-from groq import Groq
 from dotenv import load_dotenv
+from groq import Groq
 
 # Load environment variables
 load_dotenv()
 
 router = APIRouter()
 
-# Initialize Groq client
-api_key = os.getenv("GROQ_API_KEY")
-print(f"[DEBUG] Groq API Key loaded: {api_key[:20] if api_key else 'None'}...")
-groq_client = Groq(api_key=api_key)
+class QuestionProgress(BaseModel):
+    question_id: int
+    category: str
+    difficulty: str
+    status: Optional[str] = None  # 'completed', 'in_progress', or None
 
 class AIRequest(BaseModel):
     query: str
+    user_progress: Optional[List[QuestionProgress]] = None
 
 class RecommendedQuestion(BaseModel):
     id: int
@@ -29,9 +30,18 @@ class RecommendedQuestion(BaseModel):
     category: str
     difficulty: str
 
+class DifficultyRecommendation(BaseModel):
+    category: str
+    recommended_difficulty: str
+    reason: str
+    completed_easy: int
+    completed_medium: int
+    completed_hard: int
+
 class AIResponse(BaseModel):
     response: str
     recommended_questions: List[RecommendedQuestion]
+    personalized_recommendations: Optional[List[DifficultyRecommendation]] = None
 
 def detect_category(query: str) -> Optional[str]:
     """
@@ -70,38 +80,102 @@ def detect_category(query: str) -> Optional[str]:
 
     return None
 
+def analyze_user_progress(user_progress: Optional[List[QuestionProgress]]) -> List[DifficultyRecommendation]:
+    """
+    Analyze user's completion history and recommend next difficulty level for each category.
+    Uses rule-based ML approach to personalize learning path.
+    """
+    if not user_progress:
+        return []
+
+    # Group progress by category
+    category_stats: Dict[str, Dict[str, int]] = {}
+
+    for progress in user_progress:
+        if progress.status != 'completed':
+            continue
+
+        category = progress.category
+        difficulty = progress.difficulty
+
+        if category not in category_stats:
+            category_stats[category] = {'Easy': 0, 'Medium': 0, 'Hard': 0}
+
+        if difficulty in ['Easy', 'Medium', 'Hard']:
+            category_stats[category][difficulty] += 1
+
+    # Generate recommendations for each category
+    recommendations = []
+
+    for category, stats in category_stats.items():
+        easy_count = stats['Easy']
+        medium_count = stats['Medium']
+        hard_count = stats['Hard']
+
+        # Rule-based difficulty prediction
+        if hard_count >= 5:
+            recommended = 'Hard'
+            reason = f'You\'ve mastered {hard_count} Hard problems! Keep challenging yourself.'
+        elif medium_count >= 10:
+            recommended = 'Hard'
+            reason = f'Great progress on Medium! ({medium_count} completed) Ready for Hard challenges.'
+        elif medium_count >= 5:
+            recommended = 'Medium'
+            reason = f'Solid Medium progress ({medium_count} completed). Mix in some Hard problems too!'
+        elif easy_count >= 15:
+            recommended = 'Medium'
+            reason = f'You\'ve mastered Easy level! ({easy_count} completed) Time to level up to Medium.'
+        elif easy_count >= 8:
+            recommended = 'Medium'
+            reason = f'Good Easy foundation ({easy_count} completed). Start mixing in Medium problems.'
+        elif easy_count >= 3:
+            recommended = 'Easy'
+            reason = f'Building momentum! ({easy_count} completed) Complete a few more Easy before Medium.'
+        else:
+            recommended = 'Easy'
+            reason = 'Start with Easy problems to build a strong foundation.'
+
+        recommendations.append(DifficultyRecommendation(
+            category=category,
+            recommended_difficulty=recommended,
+            reason=reason,
+            completed_easy=easy_count,
+            completed_medium=medium_count,
+            completed_hard=hard_count
+        ))
+
+    return recommendations
+
 @router.post("/ai/ask", response_model=AIResponse)
 def ask_ai(
     request: AIRequest,
     db: Session = Depends(get_db)
 ):
     """
-    AI-powered interview preparation assistant using RAG.
+    AI-powered interview preparation assistant with personalized difficulty recommendations.
 
     - **query**: User's question or topic they want help with
+    - **user_progress**: Optional list of user's question completion history
 
-    Returns AI-generated advice along with relevant question recommendations.
+    Returns AI-generated advice, relevant question recommendations, and personalized difficulty predictions.
     """
 
-    # Step 1: Detect category from user query
-    detected_category = detect_category(request.query)
-    print(f"[DEBUG] Detected category: {detected_category}")
+    # Analyze user progress and generate personalized recommendations
+    personalized_recs = analyze_user_progress(request.user_progress)
 
-    # Step 2: Retrieval - Search for relevant questions in the database
+    # Search for relevant questions in database
+    detected_category = detect_category(request.query)
     search_terms = request.query.lower()
     questions_query = []
 
-    # If category detected, prioritize questions from that category
+    # Category-based retrieval
     if detected_category:
-        print(f"[DEBUG] Filtering by category: {detected_category}")
         questions_query = db.query(Question).filter(
             Question.category == detected_category
         ).limit(5).all()
-        print(f"[DEBUG] Found {len(questions_query)} questions in {detected_category} category")
 
-    # If no category-specific results or no category detected, do general keyword search
+    # Fallback to keyword search
     if not questions_query:
-        print(f"[DEBUG] Falling back to general keyword search")
         questions_query = db.query(Question).filter(
             or_(
                 Question.title.ilike(f"%{search_terms}%"),
@@ -110,11 +184,10 @@ def ask_ai(
             )
         ).limit(5).all()
 
-    # If still no questions found, try searching with individual words
+    # Word-based search as last resort
     if not questions_query:
         words = [w for w in search_terms.split() if len(w) > 3]
         if words:
-            print(f"[DEBUG] Trying word-based search with: {words}")
             filters = [
                 or_(
                     Question.title.ilike(f"%{word}%"),
@@ -124,18 +197,33 @@ def ask_ai(
             ]
             questions_query = db.query(Question).filter(or_(*filters)).limit(5).all()
 
-    # Step 2: Augmentation - Build context from retrieved questions
+    # Build context from retrieved questions
     context_parts = []
     if questions_query:
         context_parts.append("Related practice questions:")
-        for i, q in enumerate(questions_query, 1):
+        for q in questions_query:
             context_parts.append(f"- {q.title} ({q.category}, {q.difficulty})")
-        context_parts.append("")
+
+    # Add personalized recommendations to context
+    if personalized_recs:
+        context_parts.append("\nUser's personalized learning path:")
+        for rec in personalized_recs:
+            context_parts.append(
+                f"- {rec.category}: Recommend {rec.recommended_difficulty} "
+                f"(Completed: {rec.completed_easy} Easy, {rec.completed_medium} Medium, {rec.completed_hard} Hard)"
+            )
 
     context = "\n".join(context_parts)
 
-    # Step 3: Generation - Call Groq API with context + user query
-    system_prompt = """You are an expert interview preparation coach specializing in technical interviews for software engineering, data science, and ML roles.
+    # Call Groq API
+    try:
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="GROQ_API_KEY not found")
+
+        client = Groq(api_key=api_key)
+
+        system_prompt = f"""You are an expert interview preparation coach specializing in technical interviews for software engineering, data science, and ML roles.
 
 Your role is to:
 - Provide clear, actionable advice for interview preparation
@@ -143,36 +231,27 @@ Your role is to:
 - Suggest study strategies and approaches
 - Help users understand what interviewers are looking for
 - Be encouraging and supportive
-- If you have knowledge of relevant practice questions on this topic, you can mention them naturally as examples
+- Naturally mention relevant practice questions when appropriate
 
-IMPORTANT: Do NOT mention databases, contexts, or that information was "provided" to you. Act as if you have this knowledge naturally."""
+Context from question database:
+{context}"""
 
-    user_prompt = f"""{context}
-
-{request.query}"""
-
-    try:
-        # Call Groq API
-        print(f"[DEBUG] Calling Groq API with query: {request.query[:50]}...")
-        chat_completion = groq_client.chat.completions.create(
+        chat_completion = client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": request.query}
             ],
-            model="llama-3.3-70b-versatile",  # Latest Llama model (3.1 was decommissioned)
+            model="llama-3.3-70b-versatile",
             temperature=0.7,
             max_tokens=1000,
         )
 
         ai_response = chat_completion.choices[0].message.content
-        print(f"[DEBUG] Groq API call successful")
 
     except Exception as e:
-        print(f"[ERROR] Groq API call failed: {str(e)}")
-        print(f"[ERROR] Full traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Error calling Groq API: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"AI error: {str(e)}")
 
-    # Format recommended questions for response
+    # Format recommended questions
     recommended = [
         RecommendedQuestion(
             id=q.id,
@@ -185,5 +264,6 @@ IMPORTANT: Do NOT mention databases, contexts, or that information was "provided
 
     return AIResponse(
         response=ai_response,
-        recommended_questions=recommended
+        recommended_questions=recommended,
+        personalized_recommendations=personalized_recs if personalized_recs else None
     )
