@@ -81,6 +81,7 @@ export default function AIAssistant() {
         try {
             // Build progress data
             const userProgressData = buildProgressData();
+            console.log('[DEBUG] Sending progress data:', userProgressData);
 
             // Call AI API with progress data
             const response = await aiAPI.ask(userMessage, userProgressData);
