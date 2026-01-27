@@ -9,7 +9,7 @@ An AI-powered interview prep platform that brings together coding problems, syst
 
 ## What it does
 
-- **390+ Questions**: Coding challenges, system design scenarios, and behavioral questions scraped from various sources
+- **1000+ Questions**: Coding challenges, system design scenarios, and behavioral questions scraped from various sources
 - **AI Assistant**: Chat with an AI that knows your progress and recommends what to practice next
 - **Smart Recommendations**: ML algorithm that figures out if you should practice easy, medium, or hard problems based on what you've completed
 - **Progress Tracking**: Keeps track of what you've solved so you don't repeat the same questions
