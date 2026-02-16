@@ -17,7 +17,7 @@ An AI-powered interview prep platform that brings together coding problems, syst
 
 ## How it works
 
-**Backend**: Python with FastAPI handling the REST API. Used BeautifulSoup to scrape questions from different sites and store everything in PostgreSQL. The AI uses RAG to give context-aware responses.
+**Backend**: Python with FastAPI handling the REST API. Used BeautifulSoup to scrape questions from different sites and store everything in PostgreSQL.
 
 **Frontend**: React app with a simple UI. Deployed on Vercel.
 
